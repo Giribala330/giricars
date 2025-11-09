@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register — carsdoor</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <div class="bg" style="background-image:url('https://static.vecteezy.com/system/resources/previews/007/668/502/large_2x/luxury-blue-suv-car-parked-on-the-road-beside-tropical-beach-with-beautiful-sunset-sky-new-car-with-sport-and-modern-design-car-driving-for-summer-trip-automotive-industry-nature-landscape-photo.jpg')">
+    <div class="container">
+      <div class="center-card">
+        <h2>Register</h2>
+        <form class="form" id="regForm">
+          <div class="row">
+            <div><label>Role</label>
+              <select name="role" required>
+                <option value="">Select</option>
+                <option value="buyer">Buyer</option>
+                <option value="seller">Seller</option>
+              </select>
+            </div>
+            <div><label>Age</label><input name="age" type="number" required></div>
+          </div>
+          <div class="row">
+            <div><label>Name</label><input name="name" required></div>
+            <div><label>Phone</label><input name="phone" required></div>
+          </div>
+          <div><label>Address</label><textarea name="address" required></textarea></div>
+          <div class="row">
+            <div><label>UserID mail</label><input name="usermail" placeholder="buyer_name@carsdoor.com" required></div>
+            <div><label>Gmail</label><input name="gmail" type="email" required></div>
+          </div>
+          <div class="row">
+            <div><label>Password</label><input name="password" type="password" required></div>
+            <div><label>Confirm Password</label><input name="cpass" type="password" required></div>
+          </div>
+          <button class="btn btn-primary" type="submit">Request Approval</button>
+          <a class="link" href="/login.html">Already have an account?</a>
+        </form>
+      </div>
+    </div>
+  </div>
+  <script>
+  document.getElementById('regForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    if(fd.get('password')!==fd.get('cpass')){ alert('Passwords do not match'); return; }
+    const payload = Object.fromEntries(fd.entries());
+    delete payload.cpass;
+    const res = await _carsdoor.api('/api/register', {method:'POST', body: JSON.stringify(payload)});
+    alert(res.message);
+    location.href='/login.html';
+  });
+  </script>
+</body>
+</html>

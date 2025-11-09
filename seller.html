@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seller — carsdoor</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script defer src="/app.js"></script>
+  <style>
+    .tab-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .tab-buttons button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      font-weight: 600;
+      transition: 0.3s ease;
+    }
+    .tab-buttons button.active { background: #3b82f6; }
+    .tab-buttons button:hover { background: #2563eb; }
+  </style>
+</head>
+<body>
+  <div class="bg" style="background-image:url('https://static.vecteezy.com/system/resources/previews/007/668/502/large_2x/luxury-blue-suv-car-parked-on-the-road-beside-tropical-beach-with-beautiful-sunset-sky-new-car-with-sport-and-modern-design-car-driving-for-summer-trip-automotive-industry-nature-landscape-photo.jpg')">
+    <div class="container">
+      <div class="center-card">
+        <h2 class="text-center">Seller Portal</h2>
+
+        <div style="text-align:center; margin-bottom:15px;">
+          <button class="btn btn-danger" onclick="logout()">Logout</button>
+        </div>
+
+        <div class="tab-buttons">
+          <button id="btnAdd" class="active" onclick="showTab('add')">Add Car</button>
+          <button id="btnOrders" onclick="showTab('orders')">View Orders</button>
+        </div>
+
+        <div id="tab-add">
+          <h3>List your car</h3>
+          <form class="form" id="carForm">
+            <div class="row">
+              <div><label>Brand</label><input name="brand" required></div>
+              <div><label>Model</label><input name="model" required></div>
+            </div>
+            <div class="row">
+              <div><label>Model Year</label><input name="model_year" type="number" required></div>
+              <div><label>Milage</label><input name="milage" placeholder="51,000 mi." required></div>
+            </div>
+            <div class="row">
+              <div><label>Fuel Type</label><input name="fuel_type" placeholder="petrol/diesel/ev" required></div>
+              <div><label>Exterior Color</label><input name="ext_col" required></div>
+            </div>
+            <div class="row">
+              <div><label>Interior Color</label><input name="int_col" required></div>
+              <div><label>Accident</label><input name="accident" required></div>
+            </div>
+            <div><label>Price</label><input name="price" placeholder="$10,300" required></div>
+            <button class="btn btn-primary" type="submit">Submit for Admin Approval</button>
+          </form>
+        </div>
+
+        <div id="tab-orders" style="display:none;">
+          <h3>Your Orders</h3>
+          <div id="orders" class="small" style="margin-top:10px;"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+  async function loadOrders(){
+    const me = await _carsdoor.ensureLoggedIn();
+    if(!me || me.role!=='seller'){ location.href='/login.html'; return; }
+    const resp = await _carsdoor.api('/api/seller/orders');
+    const O = resp.orders.map(o=>`
+      <tr>
+        <td>${o.order_id}</td>
+        <td>${o.car_brand} ${o.car_model}</td>
+        <td>${o.buyer_name}</td>
+        <td>${o.buyer_phone}</td>
+        <td>${o.needed_date}</td>
+        <td>${o.status}</td>
+      </tr>
+    `).join('');
+    document.getElementById('orders').innerHTML = O ? `
+      <table class="table">
+        <tr><th>ID</th><th>Car</th><th>Buyer</th><th>Phone</th><th>Date</th><th>Status</th></tr>${O}
+      </table>` : '<p>No orders yet.</p>';
+  }
+
+  document.getElementById('carForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    const res = await _carsdoor.api('/api/seller/add-car', {method:'POST', body: JSON.stringify(payload)});
+    alert(res.message);
+    e.target.reset();
+  });
+
+  function showTab(tab){
+    document.getElementById('tab-add').style.display = (tab==='add') ? 'block' : 'none';
+    document.getElementById('tab-orders').style.display = (tab==='orders') ? 'block' : 'none';
+    document.getElementById('btnAdd').classList.toggle('active', tab==='add');
+    document.getElementById('btnOrders').classList.toggle('active', tab==='orders');
+    if(tab === 'orders') loadOrders();
+  }
+
+  async function logout(){
+    await _carsdoor.api('/api/logout', {method:'POST'});
+    location.href='/';
+  }
+
+  showTab('add');
+  </script>
+</body>
+</html>

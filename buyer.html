@@ -1,0 +1,175 @@
+<!DOCTYPE html> 
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buyer — carsdoor</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <!-- MAIN PANEL -->
+  <div class="bg" id="panel-list" style="background-image:url('https://images.pexels.com/photos/31192013/pexels-photo-31192013/free-photo-of-red-sports-car-in-scenic-mountain-landscape.jpeg')">
+    <div class="container">
+      <div class="center-card">
+        <h2>Browse Cars</h2>
+
+        <div style="display:flex; justify-content:center; gap:10px; margin-bottom:12px;">
+          <button class="btn btn-danger" onclick="logout()">Logout</button>
+          <button class="btn btn-primary" onclick="toggleOrderStatus()">View Order Status</button>
+        </div>
+
+        <div id="errorBox" class="small" style="color:#fde68a; margin-bottom:8px;"></div>
+        <div id="list" class="cards"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ORDER PANEL -->
+  <div class="bg" id="panel-order" style="display:none; background-image:url('https://images.pexels.com/photos/31192013/pexels-photo-31192013/free-photo-of-red-sports-car-in-scenic-mountain-landscape.jpeg')">
+    <div class="container">
+      <div class="center-card">
+        <h2>Order Car</h2>
+        <form class="form" id="orderForm">
+          <input type="hidden" name="car_id" id="car_id">
+          <div class="row">
+            <div><label>Name</label><input name="name" required></div>
+            <div><label>Phone</label><input name="phone" required></div>
+          </div>
+          <div><label>Address</label><textarea name="address" required></textarea></div>
+          <div><label>Date Needed</label><input name="needed_date" placeholder="YYYY-MM-DD" required></div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary" type="submit">Place Order</button>
+            <button class="btn btn-ghost" type="button" onclick="togglePanels()">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ORDER STATUS PANEL -->
+  <div class="bg" id="panel-status" style="display:none; background-image:url('https://images.pexels.com/photos/31192013/pexels-photo-31192013/free-photo-of-red-sports-car-in-scenic-mountain-landscape.jpeg')">
+    <div class="container">
+      <div class="center-card">
+        <h2>Your Orders</h2>
+        <div id="orderStatus" class="small"></div>
+        <div style="text-align:center; margin-top:15px;">
+          <button class="btn btn-ghost" onclick="backToCars()">Back to Cars</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  function togglePanels(){
+    document.getElementById('panel-list').style.display = 'grid';
+    document.getElementById('panel-order').style.display = 'none';
+  }
+  function backToCars(){
+    document.getElementById('panel-status').style.display = 'none';
+    document.getElementById('panel-list').style.display = 'grid';
+  }
+  async function toggleOrderStatus(){
+    document.getElementById('panel-list').style.display = 'none';
+    document.getElementById('panel-status').style.display = 'grid';
+    await loadOrderStatus();
+  }
+
+  async function xapi(path, opts = {}) {
+    if (window._carsdoor && typeof window._carsdoor.api === 'function') {
+      return window._carsdoor.api(path, opts);
+    }
+    const res = await fetch(path, { credentials:'include', headers:{'Content-Type':'application/json'}, ...opts });
+    let data = null;
+    try { data = await res.json(); } catch(e){}
+    if (!res.ok) throw new Error((data && (data.error||data.message)) || `HTTP ${res.status}`);
+    return data || {};
+  }
+
+  async function loadCars(){
+    try{
+      document.getElementById('errorBox').textContent = '';
+      const me = await xapi('/api/me');
+      if(!me || me.role!=='buyer'){ location.href='/login.html'; return; }
+
+      const carsData = await xapi('/api/cars');
+      const cars = carsData.cars || [];
+      const listEl = document.getElementById('list');
+
+      if (!cars.length){
+        listEl.innerHTML = '<p class="small">No available cars right now.</p>';
+        return;
+      }
+
+      const html = cars.map(c => `
+        <div class="card">
+          <h3>${c.brand || ''} ${c.model || ''}</h3>
+          <p class="small">${c.model_year || ''} • ${c.milage || ''} • ${c.fuel_type || ''}</p>
+          <p>Ext: ${c.ext_col || ''} | Int: ${c.int_col || ''}</p>
+          <p class="small">Seller: ${c.seller_name || '-'} (${c.seller_phone || '-'})</p>
+          <p><b>${c.price || ''}</b></p>
+          <button class="btn btn-primary" type="button" onclick="startOrder(${Number(c.id)})">Order</button>
+        </div>
+      `).join('');
+      listEl.innerHTML = html;
+    }catch(err){
+      document.getElementById('errorBox').textContent = `Error loading cars: ${err.message}`;
+    }
+  }
+
+  async function startOrder(id){
+    document.getElementById('car_id').value = id;
+    document.getElementById('panel-list').style.display = 'none';
+    document.getElementById('panel-order').style.display = 'grid';
+  }
+
+  document.getElementById('orderForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    try{
+      const res = await xapi('/api/buyer/order', { method:'POST', body: JSON.stringify(payload) });
+      alert(res.message || 'Order placed. Awaiting admin approval.');
+      togglePanels();
+      await loadOrderStatus();
+    }catch(err){
+      alert('Order failed: ' + err.message);
+    }
+  });
+
+  async function loadOrderStatus(){
+    try{
+      const me = await xapi('/api/me');
+      if(!me || me.role!=='buyer'){ location.href='/login.html'; return; }
+      const data = await xapi('/api/buyer/orders');
+      const container = document.getElementById('orderStatus');
+      if(!data.orders || !data.orders.length){
+        container.innerHTML = '<p>No orders placed yet.</p>';
+        return;
+      }
+      container.innerHTML = data.orders.map(o => `
+        <div class="card small">
+          <p><b>Car:</b> ${o.car_brand || ''} ${o.car_model || ''}</p>
+          <p><b>Status:</b>
+            <span class="badge ${
+              o.status==='approved' ? 'ok' :
+              (o.status==='declined' ? 'bad' : 'pending')
+            }">${o.status}</span>
+          </p>
+          <p><b>Needed Date:</b> ${o.needed_date || ''}</p>
+          <p><b>Order ID:</b> ${o.id}</p>
+        </div>
+      `).join('');
+    }catch(err){
+      document.getElementById('orderStatus').innerHTML = `<p>Error: ${err.message}</p>`;
+    }
+  }
+
+  async function logout(){
+    await xapi('/api/logout', {method:'POST'});
+    location.href='/';
+  }
+
+  window.addEventListener('load', loadCars);
+  </script>
+</body>
+</html>

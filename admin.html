@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — carsdoor</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script defer src="/app.js"></script>
+  <style>
+    .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+    .tab-btn {
+      background: rgba(255,255,255,0.14); color: #fff; border: 1px solid rgba(255,255,255,0.3);
+      padding: 12px 16px; border-radius: 12px; font-weight: 700; cursor: pointer; text-align:center;
+    }
+    .tab-btn.active { background: #4f46e5; border-color: #4f46e5; }
+    .section { display:none; }
+    .section.show { display:block; }
+  </style>
+</head>
+<body>
+  <div class="bg" style="background-image:url('https://car-images.bauersecure.com/wp-images/3621/best_cars_range_rover.jpg')">
+    <div class="container">
+      <div class="center-card">
+        <h2>Admin Panel</h2>
+
+        <div style="display:flex; gap:8px; margin-bottom:14px">
+          <button class="btn btn-danger" onclick="logout()">Logout</button>
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn active" id="btn-users"  onclick="showTab('users')">User Requests</button>
+          <button class="tab-btn"         id="btn-cars"   onclick="showTab('cars')">Car Requests</button>
+          <button class="tab-btn"         id="btn-orders" onclick="showTab('orders')">Order Requests</button>
+        </div>
+
+        <div class="section show" id="sec-users">
+          <h3>Pending/All Users</h3>
+          <div id="users"></div>
+        </div>
+
+        <div class="section" id="sec-cars">
+          <h3>Cars awaiting approval</h3>
+          <div id="pendingCars"></div>
+        </div>
+
+        <div class="section" id="sec-orders">
+          <h3>Orders</h3>
+          <div id="orders"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+  function showTab(which){
+    document.getElementById('btn-users').classList.toggle('active', which==='users');
+    document.getElementById('btn-cars').classList.toggle('active', which==='cars');
+    document.getElementById('btn-orders').classList.toggle('active', which==='orders');
+
+    document.getElementById('sec-users').classList.toggle('show', which==='users');
+    document.getElementById('sec-cars').classList.toggle('show', which==='cars');
+    document.getElementById('sec-orders').classList.toggle('show', which==='orders');
+
+    if(which==='users')  loadUsers();
+    if(which==='cars')   loadPendingCars();
+    if(which==='orders') loadOrders();
+  }
+
+  async function loadUsers(){
+    const users = await _carsdoor.api('/api/admin/users');
+    const rows = users.users.map(u => `
+      <tr>
+        <td>${u.id}</td>
+        <td>${u.role}</td>
+        <td>${u.name}</td>
+        <td>${u.usermail}</td>
+        <td><span class="badge ${u.status==='approved'?'ok':u.status}">${u.status}</span></td>
+        <td style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="setUser(${u.id}, true)">Approve</button>
+          <button class="btn btn-danger"  onclick="restrictUser(${u.id})">Restrict</button>
+        </td>
+      </tr>
+    `).join('');
+    document.getElementById('users').innerHTML = `
+      <table class="table">
+        <tr><th>ID</th><th>Role</th><th>Name</th><th>Usermail</th><th>Status</th><th>Action</th></tr>
+        ${rows || '<tr><td colspan="6" class="small">No users yet.</td></tr>'}
+      </table>`;
+  }
+
+  async function loadPendingCars(){
+    const pending = await _carsdoor.api('/api/admin/pending-cars');
+    const rows = pending.cars.map(c => `
+      <tr>
+        <td>${c.id}</td>
+        <td>${c.brand} ${c.model}</td>
+        <td>${c.model_year}</td>
+        <td>${c.milage}</td>
+        <td>${c.fuel_type}</td>
+        <td>${c.price}</td>
+        <td>${c.seller_name||''} (${c.seller_phone||''})</td>
+        <td style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="approveCar(${c.id}, true)">Approve</button>
+          <button class="btn btn-ghost"   onclick="approveCar(${c.id}, false)">Reject</button>
+        </td>
+      </tr>
+    `).join('');
+    document.getElementById('pendingCars').innerHTML = `
+      <table class="table">
+        <tr><th>ID</th><th>Car</th><th>Year</th><th>Milage</th><th>Fuel</th><th>Price</th><th>Seller</th><th>Action</th></tr>
+        ${rows || '<tr><td colspan="8" class="small">No pending cars.</td></tr>'}
+      </table>`;
+  }
+
+  async function loadOrders(){
+    const orders = await _carsdoor.api('/api/admin/orders');
+    const rows = orders.orders.map(o => {
+      const badgeClass = (o.status === 'approved') ? 'ok' :
+                         (o.status === 'declined') ? 'bad' : 'pending';
+      const actions = (o.status === 'pending') ? `
+        <button class="btn btn-primary" onclick="setOrder(${o.id}, true)">Approve</button>
+        <button class="btn btn-ghost"   onclick="setOrder(${o.id}, false)">Decline</button>
+      ` : `<span class="small">—</span>`;
+      return `
+        <tr>
+          <td>${o.id}</td>
+          <td>${o.car_brand||''} ${o.car_model||''}</td>
+          <td>${o.buyer_name||''}</td>
+          <td>${o.buyer_phone||''}</td>
+          <td>${o.needed_date||''}</td>
+          <td><span class="badge ${badgeClass}">${o.status}</span></td>
+          <td style="display:flex;gap:6px;flex-wrap:wrap">${actions}</td>
+        </tr>
+      `;
+    }).join('');
+    document.getElementById('orders').innerHTML = `
+      <table class="table">
+        <tr><th>ID</th><th>Car</th><th>Buyer</th><th>Phone</th><th>Needed</th><th>Status</th><th>Action</th></tr>
+        ${rows || '<tr><td colspan="7" class="small">No orders yet.</td></tr>'}
+      </table>`;
+  }
+
+  async function setUser(id, approve){
+    const res = await _carsdoor.api('/api/admin/approve-user', {
+      method:'POST', body: JSON.stringify({user_id:id, approve})
+    });
+    alert(res.message); loadUsers();
+  }
+  async function restrictUser(id){
+    const res = await _carsdoor.api('/api/admin/restrict-user', {
+      method:'POST', body: JSON.stringify({user_id:id})
+    });
+    alert(res.message); loadUsers();
+  }
+  async function approveCar(id, approve){
+    const res = await _carsdoor.api('/api/admin/approve-car', {
+      method:'POST', body: JSON.stringify({car_id:id, approve})
+    });
+    alert(res.message);
+    loadPendingCars();   // row disappears after either action
+  }
+  async function setOrder(id, approve){
+    const res = await _carsdoor.api('/api/admin/approve-order', {
+      method:'POST', body: JSON.stringify({order_id:id, approve})
+    });
+    alert(res.message);
+    loadOrders();        // buttons disappear when not pending
+  }
+  async function logout(){ await _carsdoor.api('/api/logout', {method:'POST'}); location.href='/'; }
+
+  (async function init(){
+    const me = await _carsdoor.ensureLoggedIn();
+    if(!me || me.role!=='admin'){ location.href='/login.html'; return; }
+    showTab('users');
+  })();
+  </script>
+</body>
+</html>
